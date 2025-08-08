@@ -14,9 +14,25 @@ public class GameManager : NetworkBehaviour
     public Color player2Color = Color.yellow;
     public Button restartButton;
 
-    private int[,] board; // Estado do tabuleiro no servidor
+    private int[,] board;
     private int currentPlayer = 1;
     private bool gameOver = false;
+
+    // Inicialização do servidor
+    public override void OnNetworkSpawn()
+    {
+        if (IsServer)
+        {
+            board = new int[rows, columns];
+            currentPlayer = 1;
+            gameOver = false;
+        }
+
+        if (IsClient)
+        {
+            SetupGrid();
+        }
+    }
 
     void Start()
     {
@@ -25,10 +41,10 @@ public class GameManager : NetworkBehaviour
         {
             if (IsServer) RestartGameServerRpc();
         });
-        // Inicialização do jogo só no host
+
         if (IsServer)
         {
-            RestartGameServerRpc();
+            RestartGameServerRpc(); // Reiniciar ao iniciar
         }
     }
 
@@ -43,6 +59,7 @@ public class GameManager : NetworkBehaviour
             {
                 Button b = gridParent.transform.GetChild(i).GetComponent<Button>();
                 int colIndex = c;
+                b.onClick.RemoveAllListeners(); // Evita múltiplos listeners
                 b.onClick.AddListener(() =>
                 {
                     if (IsOwner && !gameOver)
@@ -54,17 +71,15 @@ public class GameManager : NetworkBehaviour
         }
     }
 
-    // Jogador local tenta jogar — envia para servidor
     public void OnColumnClick(int col)
     {
         SubmitMoveServerRpc(col);
     }
 
-    // Executado no servidor: processa jogada
     [ServerRpc(RequireOwnership = false)]
     void SubmitMoveServerRpc(int col)
     {
-        if (gameOver) return;
+        if (gameOver || board == null) return;
 
         for (int row = rows - 1; row >= 0; row--)
         {
@@ -115,13 +130,14 @@ public class GameManager : NetworkBehaviour
         }
     }
 
-    bool CheckVictory(int lastCol, int lastRow)
+    // Correção: parâmetros na ordem correta
+    bool CheckVictory(int lastRow, int lastCol)
     {
         int player = board[lastRow, lastCol];
-        return (CountDirection(lastRow, lastCol, -1, 0) + CountDirection(lastRow, lastCol, 1, 0) >= 3) ||
-               (CountDirection(lastRow, lastCol, 0, -1) + CountDirection(lastRow, lastCol, 0, 1) >= 3) ||
-               (CountDirection(lastRow, lastCol, -1, -1) + CountDirection(lastRow, lastCol, 1, 1) >= 3) ||
-               (CountDirection(lastRow, lastCol, -1, 1) + CountDirection(lastRow, lastCol, 1, -1) >= 3);
+        return (CountDirection(lastRow, lastCol, -1, 0) + CountDirection(lastRow, lastCol, 1, 0) >= 3) || // Vertical
+               (CountDirection(lastRow, lastCol, 0, -1) + CountDirection(lastRow, lastCol, 0, 1) >= 3) || // Horizontal
+               (CountDirection(lastRow, lastCol, -1, -1) + CountDirection(lastRow, lastCol, 1, 1) >= 3) || // Diagonal \
+               (CountDirection(lastRow, lastCol, -1, 1) + CountDirection(lastRow, lastCol, 1, -1) >= 3);   // Diagonal /
     }
 
     int CountDirection(int row, int col, int dRow, int dCol)
@@ -149,7 +165,6 @@ public class GameManager : NetworkBehaviour
         gameOver = false;
 
         ResetBoardClientRpc();
-
         UpdateStatusClientRpc("Vez do Jogador 1");
         SetButtonsInteractableClientRpc(true);
     }
