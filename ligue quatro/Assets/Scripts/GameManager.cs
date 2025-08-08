@@ -62,7 +62,7 @@ public class GameManager : NetworkBehaviour
                 b.onClick.RemoveAllListeners(); // Evita múltiplos listeners
                 b.onClick.AddListener(() =>
                 {
-                    if (IsOwner && !gameOver)
+                    if (!gameOver)
                         OnColumnClick(colIndex);
                 });
                 gridButtons[r, c] = b;
